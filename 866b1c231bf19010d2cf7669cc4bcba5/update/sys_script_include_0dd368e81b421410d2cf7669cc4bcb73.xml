@@ -346,38 +346,49 @@ SapRFCUtil.isResponseNotEmpty = function(obj) {
 };
 
 SapRFCUtil.getReturnErrors = function(obj) {
-	var status = 'success', errors = '';
-	if (JSUtil.notNil(obj) && obj.hasOwnProperty('RETURN')) {
-		switch(JSUtil.typeOf(obj.RETURN)) {
-			case 'array':
-				for (var i = 0; i < obj.RETURN.length; i++) {
-					if (getErrStatusRetObj(obj.RETURN[i]) == 'error') {
-						status = 'error';
-					}
-				}
-				break;
+    var status = 'success',
+        errors = '';
+    if (JSUtil.notNil(obj) && obj.hasOwnProperty('RETURN') || obj.hasOwnProperty('ET_RETURN') || obj.hasOwnProperty('IT_RETURN')) {
+		var response;
+		if(obj.hasOwnProperty('RETURN'))
+			response = obj.RETURN;
+		else if(obj.hasOwnProperty('ET_RETURN'))
+			response = obj.ET_RETURN;
+		else
+			response = obj.IT_RETURN;
+        switch (JSUtil.typeOf(response)) {
+            case 'array':
+                for (var i = 0; i < response.length; i++) {
+                    if (getErrStatusRetObj(response[i]) == 'error') {
+                        status = 'error';
+                    }
+                }
+                break;
 
-			case 'object':
-				status = getErrStatusRetObj(obj.RETURN);
-				break;
-		}
-	}
+            case 'object':
+                status = getErrStatusRetObj(response);
+                break;
+        }
+    }
 
-	var errStatusObj = {
-		status: status,
-		err: errors
-	};
+    var errStatusObj = {
+        status: status,
+        err: errors
+    };
 
-	return errStatusObj;
+    if (errStatusObj.status == 'error' && (!errStatusObj.err || errStatusObj.err == ".\n"))
+        errStatusObj.err = "Unknown error from SAP. Check outputs for more details.";
 
-	function getErrStatusRetObj(retObj) {
-		if (retObj.TYPE == 'E' || retObj.TYPE == 'A') {
-			errors += retObj.MESSAGE + ".\n";
-			return 'error';
-		}
+    return errStatusObj;
 
-		return 'success';
-	}
+    function getErrStatusRetObj(retObj) {
+        if (retObj.TYPE == 'E' || retObj.TYPE == 'A') {
+            errors += retObj.MESSAGE + ".\n";
+            return 'error';
+        }
+
+        return 'success';
+    }
 };
 
 SapRFCUtil.getUnknownErr = function(e) {
@@ -466,18 +477,106 @@ SapRFCUtil.getHTMLEncodedMessage = function(message) {
         return escapedCharactersMapping[item];
     });
   };
-]]></script>
+
+SapRFCUtil.trimInputs = function(inputs) {
+	for (var key in inputs) {
+		if (typeof inputs[key] == 'string')
+			inputs[key] = inputs[key].trim();
+	}
+	return inputs;
+};
+
+SapRFCUtil.getInitialLoad = function(initial_load){
+	var inp_load = '';
+	if (initial_load == true) {
+		inp_load = 'X';
+	} else {
+		inp_load = '';
+	}
+	return inp_load;
+};
+
+SapRFCUtil.getLoadComplete = function(loadComplete, row_skip, row_count){
+	if(loadComplete == true){
+		if(row_skip > 0 || row_count > 0){
+			throw "Load complete cannot be set true if either the row count or row skip is more than 0";
+		} else {
+			return 'X';
+		}
+	} else {
+		return '';
+	}
+};
+
+SapRFCUtil.filterArrayObjects = function(inputArr){
+	var filteredArr = [];
+	if(inputArr.length != 0){
+		for(var i=0; i<inputArr.length; i++){
+			var empty = SapRFCUtil.checkEmptyProperties(inputArr[i]);
+			if(!empty){
+				var obj = {};
+				for (var key in inputArr[i]){
+					if (typeof inputArr[i][key] == 'string')
+						obj[key] = inputArr[i][key].trim();
+					else
+						obj[key] = inputArr[i][key];
+				}
+				filteredArr.push(obj);
+			}
+		}
+		return filteredArr;
+	} else {
+		return inputArr;
+	}
+};
+
+SapRFCUtil.checkEmptyProperties = function(obj) {
+	for (var key in obj) {
+		if (!gs.nil(obj[key]))
+			return false;
+	}
+	return true;
+};
+
+SapRFCUtil.getVendorErrors = function(resp){
+    var statusObj = {};
+    var et_success = "";
+    var arr = resp.ET_RETURN;
+    for (var i = 0; i < arr.length; i++) {
+        for (var k in arr[i]) {
+            if (arr[i][k] == "S") {
+                et_success = "S";
+                statusObj.response = arr[i]['MESSAGE_V1'];
+                statusObj.status = "Success";
+                statusObj.err = "";
+            }
+        }
+    }
+    if (!et_success) {
+        var errStatusObj = SapRFCUtil.getReturnErrors(resp);
+        statusObj.status = errStatusObj.status;
+        statusObj.err = errStatusObj.err;
+        statusObj.response = "";
+    }
+    return statusObj;
+};
+
+SapRFCUtil.getDateFormat = function(dat) {
+	var gd = new GlideDate();
+	gd.setValue(dat);
+	return gd.getByFormat("yyyy-MM-dd");
+};]]></script>
         <sys_class_name>sys_script_include</sys_class_name>
         <sys_created_by>admin</sys_created_by>
         <sys_created_on>2020-07-13 09:09:42</sys_created_on>
         <sys_id>0dd368e81b421410d2cf7669cc4bcb73</sys_id>
-        <sys_mod_count>38</sys_mod_count>
+        <sys_mod_count>40</sys_mod_count>
         <sys_name>SapRFCUtil</sys_name>
         <sys_package display_value="SAP S4 HANA RFC Spoke" source="sn_sap_s4_hana_rfc">866b1c231bf19010d2cf7669cc4bcba5</sys_package>
         <sys_policy>read</sys_policy>
         <sys_scope display_value="SAP S4 HANA RFC Spoke">866b1c231bf19010d2cf7669cc4bcba5</sys_scope>
         <sys_update_name>sys_script_include_0dd368e81b421410d2cf7669cc4bcb73</sys_update_name>
-        <sys_updated_by>admin</sys_updated_by>
-        <sys_updated_on>2022-06-06 10:34:11</sys_updated_on>
+        <sys_updated_by>Prama</sys_updated_by>
+        <sys_updated_on>2023-03-06 06:40:55</sys_updated_on>
     </sys_script_include>
 </record_update>
